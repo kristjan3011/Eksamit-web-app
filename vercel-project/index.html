@@ -786,7 +786,10 @@
 
     <div class="flex flex-between" style="margin-top:10px">
       <button class="btn btn-primary" onclick="runAiAnalysis()">🚀 Alusta analüüsi</button>
-      <button class="btn btn-outline btn-sm" onclick="clearAiInput()">Tühjenda</button>
+      <div class="flex" style="gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="loadAiDemo()">🔮 Proovi demoga</button>
+        <button class="btn btn-outline btn-sm" onclick="clearAiInput()">Tühjenda</button>
+      </div>
     </div>
   </div>
 
@@ -1454,6 +1457,70 @@ function clearAiInput() {
   document.getElementById('ai-file-preview').innerHTML = '';
   aiCurrentText = '';
   document.getElementById('ai-results').style.display = 'none';
+}
+
+function loadAiDemo() {
+  const demoData = {
+    overall: {
+      score: 21,
+      maxScore: 30,
+      percentage: 70,
+      verdict: 'Hea töö, vajab täiendamist',
+      summary: 'Eksamitöö on üldjoontes korrektselt struktureeritud ja praktiline osa on testitud. Puudu on ingliskeelne summary, allikaid on ainult 4 (nõutud 5) ja koodiread pole tekstist eraldatud eraldi fondiga. Eneseanalüüs on liiga lühike.'
+    },
+    criteria: [
+      { id: 1, name: 'Vastavus teemale ja erialale', score: 3, maxScore: 3, comment: 'Töö on selgelt seotud IT-süsteemide haldusega.' },
+      { id: 2, name: 'Praktiline kasutatavus', score: 3, maxScore: 3, comment: 'Konkreetne klient ja reaalne vajadus on kirjeldatud.' },
+      { id: 3, name: 'Töö maht, vahendid ja võtted', score: 2, maxScore: 3, comment: '160 tundi logitud, aga ajakava pole võrreldud tegeliku täitmisega.' },
+      { id: 4, name: 'Teoreetilise osa sisu ja vormistus', score: 2, maxScore: 3, comment: 'Struktuur on loogiline, kuid koodiread pole eraldatud (Courier New/Consolas puudub).' },
+      { id: 5, name: 'Erialane terminoloogia ja keelekasutus', score: 2, maxScore: 3, comment: 'Terminoloogia on enamjaolt korrektne, mõned kirjavead esinevad.' },
+      { id: 6, name: 'Kasutatud allikate loetelu', score: 1, maxScore: 3, comment: 'Allikaid ainult 4, Wikipedia viide on sees (ei sobi!).' },
+      { id: 7, name: 'Praktilise lahenduse kvaliteet', score: 3, maxScore: 3, comment: 'Lahendus on demonstreeritud, testitud ja töötab.' },
+      { id: 8, name: 'Jätkusuutlikkus ja edasiarendamine', score: 2, maxScore: 3, comment: 'Alternatiivsed lahendused on võrreldud, aga jätkusuutlikkust saaks põhjalikumalt kirjeldada.' },
+      { id: 9, name: 'Retsensendi arvamus', score: 2, maxScore: 3, comment: 'Retsensent on eriala spetsialist, kuid vastuseid võiks põhjalikumalt ette valmistada.' },
+      { id: 10, name: 'Töö kaitsmine', score: 1, maxScore: 3, comment: 'Kaitsekõnet pole veel koostatud, esinemist pole harjutatud.' }
+    ],
+    structure: [
+      { name: 'Tiitelleht', present: true, comment: '' },
+      { name: 'Autentsuse kinnitus', present: true, comment: '' },
+      { name: 'Sisukord', present: true, comment: 'Automaatne, korrektne' },
+      { name: 'Mõistete loetelu', present: false, comment: 'Lühendeid on kasutatud, kuid loetelu puudub' },
+      { name: 'Sissejuhatus', present: true, comment: '~1,5 lk, teema põhjendus olemas' },
+      { name: 'Teoreetiline osa', present: true, comment: '22 lk, hea maht' },
+      { name: 'Praktiline osa', present: true, comment: 'Testitud, töötav lahendus' },
+      { name: 'Kokkuvõte', present: true, comment: 'Max 1 lk, OK' },
+      { name: 'Allikate loetelu', present: true, comment: '4 allikat (1 Wikipedia – ei sobi)' },
+      { name: 'Lisad', present: false, comment: 'Ei vaja' },
+      { name: 'Summary', present: false, comment: 'INGLISKEELNE KOKKUVÕTE PUUDUB!' }
+    ],
+    formatting: [
+      { name: 'A4, ühepoolselt', ok: true, comment: '' },
+      { name: 'Times New Roman 12pt', ok: true, comment: '' },
+      { name: 'Reavahe 1,5', ok: true, comment: '' },
+      { name: 'Rööpjoondus', ok: true, comment: '' },
+      { name: 'Korrektsed veerised', ok: true, comment: '' },
+      { name: 'Koodiread eraldi fondiga', ok: false, comment: 'Courier New / Consolas puudub' },
+      { name: 'APA viitamine', ok: true, comment: '' },
+      { name: 'Leheküljenumbrid', ok: true, comment: '' }
+    ],
+    missing: [
+      'Ingliskeelne summary (max 1 lk) puudub täielikult',
+      'Kasutatud allikaid ainult 4 (miinimum 5)',
+      'Üks allikas on Wikipedia (ei ole asjakohane allikas)',
+      'Koodiread pole tekstist eraldatud eraldi fondiga (Courier New / Consolas)',
+      'Mõistete ja lühendite loetelu puudub',
+      'Eneseanalüüs on liiga pinnapealne (~3 lõiku, peaks olema ~1 lk)',
+      'Kaitsekõnet pole veel koostatud'
+    ],
+    suggestions: [
+      'Lisa ingliskeelne summary (max 1 lk) – see EI tohi olla otsetõlge, vaid peab sisaldama kõiki osasid lühendatult',
+      'Lisa vähemalt 1 asjakohane allikas (raamat/artikkel) ja eemalda Wikipedia viide',
+      'Vorminda kõik koodiread Courier New või Consolas fondiga, et need tekstist selgelt eristuksid',
+      'Täienda eneseanalüüsi – hinda oma töö tugevusi, nõrkusi ja õppimisprotsessi põhjalikumalt',
+      'Koosta kaitsekõne ettevalmistus: kirjuta kõne välja, harjuta esinemist, valmista PowerPoint'
+    ]
+  };
+  renderAiResults(demoData);
 }
 
 async function runAiAnalysis() {
