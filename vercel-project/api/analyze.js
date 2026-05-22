@@ -5,7 +5,7 @@
  * Keskkonnamuutuja: GEMINI_API_KEY
  */
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-1.5-flash-latest';
 
 const SYSTEM_PROMPT = `Sa oled Viljandi Kutseõppekeskuse (VIKK) IT-süsteemide nooremspetsialisti (tase 4) eksamitöö ekspert-hindaja.
 Analüüsi õpilase eksamitööd nelja ametliku dokumendi põhjal:
