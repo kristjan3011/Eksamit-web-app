@@ -166,9 +166,12 @@ export default async function handler(req, res) {
     });
   }
 
-  const apiKey = process.env.KIMI_API_KEY;
+  const apiKey = (process.env.KIMI_API_KEY || '').trim();
   if (!apiKey) {
     return res.status(500).json({ error: 'KIMI_API_KEY keskkonnamuutuja on seadmata. Kontrolli Vercel dashboardi.' });
+  }
+  if (!apiKey.startsWith('sk-')) {
+    return res.status(500).json({ error: 'KIMI_API_KEY on vale formaadiga. Peab algama sk- (Secret Key), mitte API ID-ga. Lisa Verceli Dashboardi Secret Key (mitte API ID).' });
   }
 
   const userPrefix = filename
@@ -196,8 +199,9 @@ export default async function handler(req, res) {
     const kimiData = await kimiRes.json();
 
     if (!kimiRes.ok) {
-      const msg = kimiData.error?.message || `Kimi API tagastas staatuse ${kimiRes.status}`;
-      return res.status(502).json({ error: msg });
+      const msg = kimiData.error?.message || kimiData.message || JSON.stringify(kimiData);
+      console.error('Kimi API error:', kimiRes.status, msg);
+      return res.status(502).json({ error: `Kimi API viga (${kimiRes.status}): ${msg}` });
     }
 
     const rawText = kimiData.choices?.[0]?.message?.content;
