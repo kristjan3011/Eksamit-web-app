@@ -1,11 +1,12 @@
 /**
  * VIKK Eksamitöö AI Analüüs
- * Google Gemini 1.5 Flash API kaudu
+ * Moonshot AI (Kimi) API kaudu
  *
- * Keskkonnamuutuja: GEMINI_API_KEY
+ * Keskkonnamuutuja: KIMI_API_KEY
  */
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const KIMI_MODEL = 'moonshot-v1-8k';
+const KIMI_API_URL = 'https://api.moonshot.cn/v1/chat/completions';
 
 const SYSTEM_PROMPT = `Sa oled Viljandi Kutseõppekeskuse (VIKK) IT-süsteemide nooremspetsialisti (tase 4) eksamitöö ekspert-hindaja.
 Analüüsi õpilase eksamitööd nelja ametliku dokumendi põhjal:
@@ -113,12 +114,10 @@ Vastuse struktuur peab olema täpselt selline:
 }`;
 
 function parseJsonFromText(text) {
-  // 1. Puhas JSON
   try {
     return JSON.parse(text);
   } catch (_) {}
 
-  // 2. Markdown code block
   const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (mdMatch) {
     try {
@@ -126,7 +125,6 @@ function parseJsonFromText(text) {
     } catch (_) {}
   }
 
-  // 3. Otsi esimest '{' ja viimast '}'
   const first = text.indexOf('{');
   const last = text.lastIndexOf('}');
   if (first !== -1 && last !== -1 && last > first) {
@@ -139,7 +137,6 @@ function parseJsonFromText(text) {
 }
 
 export default async function handler(req, res) {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -169,9 +166,9 @@ export default async function handler(req, res) {
     });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.KIMI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY keskkonnamuutuja on seadmata. Kontrolli Vercel dashboardi.' });
+    return res.status(500).json({ error: 'KIMI_API_KEY keskkonnamuutuja on seadmata. Kontrolli Vercel dashboardi.' });
   }
 
   const userPrefix = filename
@@ -179,41 +176,37 @@ export default async function handler(req, res) {
     : '--- EKSAMITÖÖ TEKST ---\n\n';
 
   try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: SYSTEM_PROMPT + '\n\n' + userPrefix + text }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.15,
-            maxOutputTokens: 8192,
-            topP: 0.95
-          }
-        })
-      }
-    );
+    const kimiRes = await fetch(KIMI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: KIMI_MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrefix + text }
+        ],
+        temperature: 0.15,
+        max_tokens: 4096
+      })
+    });
 
-    const geminiData = await geminiRes.json();
+    const kimiData = await kimiRes.json();
 
-    if (!geminiRes.ok) {
-      const msg = geminiData.error?.message || `Gemini API tagastas staatuse ${geminiRes.status}`;
+    if (!kimiRes.ok) {
+      const msg = kimiData.error?.message || `Kimi API tagastas staatuse ${kimiRes.status}`;
       return res.status(502).json({ error: msg });
     }
 
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    const rawText = kimiData.choices?.[0]?.message?.content;
     if (!rawText) {
-      return res.status(502).json({ error: 'Gemini API vastus oli tühi. Proovi uuesti.' });
+      return res.status(502).json({ error: 'Kimi API vastus oli tühi. Proovi uuesti.' });
     }
 
     const result = parseJsonFromText(rawText);
 
-    // Normaliseeri väljund (kui mõni väli puudub)
     if (!result.overall) {
       result.overall = { score: 0, maxScore: 30, percentage: 0, verdict: 'Ei saanud hinnangut', summary: '' };
     }
