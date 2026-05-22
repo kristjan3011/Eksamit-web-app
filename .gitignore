@@ -48,3 +48,6 @@ Thumbs.db
 /*.pptx
 *.py
 img/
+
+# Taastatud vanad failid (eraldi kaustas, mitte repos)
+Pythoni Failid/
