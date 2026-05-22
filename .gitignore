@@ -17,7 +17,7 @@ __pycache__/
 # Vercel
 .vercel/
 
-# Node (kui peaks tekkima)
+# Node
 node_modules/
 
 # OS
@@ -31,3 +31,20 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Juurkausta pildid ja vanad failid (mitte Eksamiabi alamkaustas)
+/*.pdf
+/*.docx
+/*.doc
+/*.zip
+/*.jpg
+/*.jpeg
+/*.png
+/*.gif
+/*.bmp
+/*.xls
+/*.xlsx
+/*.ppt
+/*.pptx
+*.py
+img/
