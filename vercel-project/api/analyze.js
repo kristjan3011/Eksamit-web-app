@@ -1,12 +1,9 @@
 /**
  * VIKK Eksamitöö AI Analüüs
- * Moonshot AI (Kimi) API kaudu
+ * Toetab Google Gemini ja OpenAI (ChatGPT)
  *
- * Keskkonnamuutuja: KIMI_API_KEY
+ * Keskkonnamuutujad: GEMINI_API_KEY, OPENAI_API_KEY
  */
-
-const KIMI_MODEL = 'moonshot-v1-8k';
-const KIMI_API_URL = 'https://api.moonshot.cn/v1/chat/completions';
 
 const SYSTEM_PROMPT = `Sa oled Viljandi Kutseõppekeskuse (VIKK) IT-süsteemide nooremspetsialisti (tase 4) eksamitöö ekspert-hindaja.
 Analüüsi õpilase eksamitööd nelja ametliku dokumendi põhjal:
@@ -136,6 +133,70 @@ function parseJsonFromText(text) {
   throw new Error('Ei suutnud AI vastusest JSON-i parsida');
 }
 
+function normalizeResult(result) {
+  if (!result.overall) {
+    result.overall = { score: 0, maxScore: 30, percentage: 0, verdict: 'Ei saanud hinnangut', summary: '' };
+  }
+  if (!Array.isArray(result.criteria)) result.criteria = [];
+  if (!Array.isArray(result.structure)) result.structure = [];
+  if (!Array.isArray(result.formatting)) result.formatting = [];
+  if (!Array.isArray(result.missing)) result.missing = [];
+  if (!Array.isArray(result.suggestions)) result.suggestions = [];
+  return result;
+}
+
+async function callGemini(apiKey, text) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: SYSTEM_PROMPT + '\n\n--- EKSAMITÖÖ TEKST ---\n\n' + text }] }],
+      generationConfig: { temperature: 0.15, maxOutputTokens: 4096 }
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.error?.message || JSON.stringify(data);
+    throw new Error(`Gemini API viga (${res.status}): ${msg}`);
+  }
+
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) throw new Error('Gemini API vastus oli tühi');
+  return normalizeResult(parseJsonFromText(rawText));
+}
+
+async function callOpenAI(apiKey, text) {
+  const url = 'https://api.openai.com/v1/chat/completions';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: '--- EKSAMITÖÖ TEKST ---\n\n' + text }
+      ],
+      temperature: 0.15,
+      max_tokens: 4096
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.error?.message || data.message || JSON.stringify(data);
+    throw new Error(`OpenAI API viga (${res.status}): ${msg}`);
+  }
+
+  const rawText = data.choices?.[0]?.message?.content;
+  if (!rawText) throw new Error('OpenAI API vastus oli tühi');
+  return normalizeResult(parseJsonFromText(rawText));
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -157,72 +218,34 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Vigane JSON keha' });
   }
 
-  const { text, filename } = body || {};
+  const { text, provider } = body || {};
 
   if (!text || typeof text !== 'string' || text.trim().length < 100) {
     return res.status(400).json({
-      error: 'Liiga lühike tekst. Eksamitöö peab sisaldama rohkem kui 100 tähemärki.',
-      hint: 'Kopeeri Wordi dokumendist kogu tekst või laadi üles .txt/.docx fail.'
+      error: 'Liiga lühike tekst. Eksamitöö peab sisaldama rohkem kui 100 tähemärki.'
     });
   }
 
-  const apiKey = (process.env.KIMI_API_KEY || '').trim();
-  if (!apiKey) {
-    return res.status(500).json({ error: 'KIMI_API_KEY keskkonnamuutuja on seadmata. Kontrolli Vercel dashboardi.' });
-  }
-  if (!apiKey.startsWith('sk-')) {
-    return res.status(500).json({ error: 'KIMI_API_KEY on vale formaadiga. Peab algama sk- (Secret Key), mitte API ID-ga. Lisa Verceli Dashboardi Secret Key (mitte API ID).' });
-  }
-
-  const userPrefix = filename
-    ? `Failinimi: ${filename}\n\n--- EKSAMITÖÖ TEKST ---\n\n`
-    : '--- EKSAMITÖÖ TEKST ---\n\n';
+  const selectedProvider = provider || 'gemini';
 
   try {
-    const kimiRes = await fetch(KIMI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: KIMI_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrefix + text }
-        ],
-        temperature: 0.15,
-        max_tokens: 4096
-      })
-    });
-
-    const kimiData = await kimiRes.json();
-
-    if (!kimiRes.ok) {
-      const msg = kimiData.error?.message || kimiData.message || JSON.stringify(kimiData);
-      console.error('Kimi API error:', kimiRes.status, msg);
-      return res.status(502).json({ error: `Kimi API viga (${kimiRes.status}): ${msg}` });
+    let result;
+    if (selectedProvider === 'openai') {
+      const apiKey = (process.env.OPENAI_API_KEY || '').trim();
+      if (!apiKey) {
+        return res.status(500).json({ error: 'OPENAI_API_KEY keskkonnamuutuja on seadmata. Lisa see Vercel dashboardi.' });
+      }
+      result = await callOpenAI(apiKey, text);
+    } else {
+      const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY keskkonnamuutuja on seadmata. Lisa see Vercel dashboardi.' });
+      }
+      result = await callGemini(apiKey, text);
     }
-
-    const rawText = kimiData.choices?.[0]?.message?.content;
-    if (!rawText) {
-      return res.status(502).json({ error: 'Kimi API vastus oli tühi. Proovi uuesti.' });
-    }
-
-    const result = parseJsonFromText(rawText);
-
-    if (!result.overall) {
-      result.overall = { score: 0, maxScore: 30, percentage: 0, verdict: 'Ei saanud hinnangut', summary: '' };
-    }
-    if (!Array.isArray(result.criteria)) result.criteria = [];
-    if (!Array.isArray(result.structure)) result.structure = [];
-    if (!Array.isArray(result.formatting)) result.formatting = [];
-    if (!Array.isArray(result.missing)) result.missing = [];
-    if (!Array.isArray(result.suggestions)) result.suggestions = [];
-
     res.status(200).json(result);
   } catch (err) {
     console.error('AI analüüsi viga:', err);
-    res.status(500).json({ error: err.message || 'Serveri sisemine viga' });
+    res.status(502).json({ error: err.message || 'Serveri sisemine viga' });
   }
 }

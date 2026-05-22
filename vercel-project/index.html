@@ -751,7 +751,7 @@
 <!-- ========== AI ANALÜÜS ========== -->
 <div class="page" id="page-ai">
   <h1>AI Analüüs</h1>
-  <p class="page-desc">Saada oma eksamitöö Kimi AI-le (Moonshot) hindamiseks nelja ametliku dokumendi põhjal. Kleepi tekst või laadi üles fail.</p>
+  <p class="page-desc">Saada oma eksamitöö AI-le hindamiseks nelja ametliku dokumendi põhjal. Kleepi tekst või laadi üles fail.</p>
 
   <div class="alert alert-info">ℹ️ Kimi AI analüüs on soovituslik ega asenda juhendaja ega komisjoni hinnangut.</div>
 
@@ -778,10 +778,20 @@
       <div id="ai-file-preview" class="muted" style="margin-top:8px"></div>
     </div>
 
-    <div class="form-row">
-      <label>API URL (Vercel)</label>
-      <input type="text" id="ai-api-url" placeholder="https://sinu-projekt.vercel.app/api/analyze" value="">
-      <div class="form-hint">Näide: https://minu-eksam.vercel.app/api/analyze</div>
+    <div class="grid2">
+      <div class="form-row">
+        <label>AI mudel</label>
+        <select id="ai-provider" onchange="saveProvider()">
+          <option value="gemini">Google Gemini 1.5 Flash (tasuta tier)</option>
+          <option value="openai">OpenAI GPT-4o Mini</option>
+        </select>
+        <div class="form-hint">Gemini on soovitatav – Google AI Studio tasuta tier piisab.</div>
+      </div>
+      <div class="form-row">
+        <label>API URL (Vercel)</label>
+        <input type="text" id="ai-api-url" placeholder="https://sinu-projekt.vercel.app/api/analyze" value="">
+        <div class="form-hint">Jäta tühjaks kui kasutad sama domeeni</div>
+      </div>
     </div>
 
     <div class="flex flex-between" style="margin-top:10px">
@@ -1451,6 +1461,11 @@ function loadMammoth() {
   });
 }
 
+function saveProvider() {
+  const p = document.getElementById('ai-provider').value;
+  localStorage.setItem('ai_provider', p);
+}
+
 function clearAiInput() {
   document.getElementById('ai-text-input').value = '';
   document.getElementById('ai-file-input').value = '';
@@ -1527,6 +1542,7 @@ async function runAiAnalysis() {
   const textInput = document.getElementById('ai-text-input').value;
   const text = aiCurrentText || textInput;
   const apiUrlInput = document.getElementById('ai-api-url').value.trim();
+  const provider = document.getElementById('ai-provider').value;
 
   const defaultUrl = localStorage.getItem('ai_api_url') || '';
   const apiUrl = apiUrlInput || defaultUrl || '/api/analyze';
@@ -1551,7 +1567,7 @@ async function runAiAnalysis() {
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), filename: document.getElementById('ai-file-input').files[0]?.name })
+      body: JSON.stringify({ text: text.trim(), provider, filename: document.getElementById('ai-file-input').files[0]?.name })
     });
 
     const data = await res.json();
@@ -1676,6 +1692,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadForm();
   const savedUrl = localStorage.getItem('ai_api_url');
   if (savedUrl) document.getElementById('ai-api-url').value = savedUrl;
+  const savedProvider = localStorage.getItem('ai_provider');
+  if (savedProvider) document.getElementById('ai-provider').value = savedProvider;
   renderTimeline();
   renderChapters();
   renderSources();
