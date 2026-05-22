@@ -1,20 +1,27 @@
-# Eksamitöö AI Analüüsi API
+# Eksamitöö AI Analüüsi Rakendus
 
-VIKK IT-süsteemide nooremspetsialisti (tase 4) eksamitööde AI-hindamise backend.
+VIKK IT-süsteemide nooremspetsialisti (tase 4) eksamitöö planeerimise ja AI-hindamise veebirakendus.
 
 ## Arhitektuur
 
 ```
-┌─────────────────────┐      POST /api/analyze      ┌──────────────────┐
-│  eksamitoo_abi.html │ ───────────────────────────> │  Vercel Serverless│
-│  (brauser, static)  │        {text, filename}      │  api/analyze.js   │
-│                     │ <─────────────────────────── │                   │
-└─────────────────────┘        {overall, criteria,   │  ↓ Google Gemini  │
-                                structure, missing,   │     1.5 Flash     │
-                                suggestions}          └──────────────────┘
+vercel-project/               ← Deploy'itav kaust
+├── index.html                ← Frontend (Eksamitöö Abirakendus)
+├── api/
+│   └── analyze.js            ← Google Gemini serverless API
+├── package.json
+├── vercel.json               ← CORS + routing
+└── README.md
+
+Eksamiabi/                    ← Ametlikud dokumendid (repo juures)
+├── Eksamitöö juhend 2025_26 IS.pdf
+├── Hindamisstandard_IT-susteemide_nooremspetsialist-2026.docx
+├── VIKK_opilaste kirjalike toode koostamine ja vormistamine_juhend 2025_2.pdf
+└── it-susteemide_nooremspetsialist_tase_4.4.pdf
 ```
 
-Backend on **stateless** – ei salvesta eksamitöid ega logi. Kogu andmetöötlus toimub Google Gemini API-s.
+- **Frontend:** Staatiline HTML/CSS/JS (localStorage, ühelehelised vaated)
+- **Backend:** Vercel Serverless Function (`/api/analyze`) → Google Gemini 1.5 Flash
 
 ---
 
@@ -56,6 +63,7 @@ vercel
 Lisa `GEMINI_API_KEY` Verceli keskkonnamuutujatesse:
 
 ```bash
+cd vercel-project
 vercel env add GEMINI_API_KEY
 # Vali: Production (ja soovi korral Preview / Development)
 # Sisesta oma API võti
@@ -68,6 +76,9 @@ Või Vercel Dashboard → Project → Settings → Environment Variables.
 ## 4. Deploy
 
 ```bash
+# Mine deploy'itavasse kausta
+cd vercel-project
+
 # Production deploy
 vercel --prod
 ```
@@ -77,22 +88,9 @@ Peale deploy'd kuvatakse URL, nt:
 https://minu-eksamitoo-ai.vercel.app
 ```
 
-API endpoint asub aadressil:
-```
-https://minu-eksamitoo-ai.vercel.app/api/analyze
-```
-
----
-
-## 5. Frontend seadistamine
-
-1. Ava `eksamitoo_abi.html` brauseris (double-click või Live Server).
-2. Mine lehele **AI Analüüs** (🤖).
-3. Kleebi väljale **API URL (Vercel)** oma projekti aadress + `/api/analyze`:
-   ```
-   https://minu-eksamitoo-ai.vercel.app/api/analyze
-   ```
-4. URL salvestub brauseri `localStorage`-sse, nii et seda peab sisestama ainult ühe korra.
+**Rakenduse osad:**
+- Frontend avaneb otse: `https://minu-eksamitoo-ai.vercel.app/`
+- API endpoint: `https://minu-eksamitoo-ai.vercel.app/api/analyze`
 
 ---
 
@@ -148,7 +146,7 @@ Content-Type: application/json
 | Oht | Lahendus |
 |-----|----------|
 | API võti lekib brauserisse | Võti hoitakse **ainult** Verceli serveripoolel (`process.env`) |
-| CORS rünnakud | API aktsepteerib päringuid kõigilt domeenidelt (arenduse hõlbustamiseks). Tootmises piira `Access-Control-Allow-Origin` oma domeenile. |
+| CORS rünnakud | API aktsepteerib päringuid kõigilt domeenidelt. Tootmises piira `Access-Control-Allow-Origin` oma domeenile kui vaja. |
 | Liiga pikk tekst | Gemini 1.5 Flash toetab ~1M tokenit (~700k sõna eesti keeles). Verceli päringu limit on 4.5 MB. |
 | Päringute rate limiting | Google Gemini tasuta tier: 15 RPM, 1500 RPD. Kui vaja rohkem, lülitu Google Cloud'ile. |
 
@@ -171,6 +169,7 @@ vercel dev
 
 Kohalikus arenduses pead samuti `GEMINI_API_KEY` seadistama:
 ```bash
+cd vercel-project
 vercel env pull .env.development.local
 ```
 

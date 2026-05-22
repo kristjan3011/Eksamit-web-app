@@ -1462,7 +1462,7 @@ async function runAiAnalysis() {
   const apiUrlInput = document.getElementById('ai-api-url').value.trim();
 
   const defaultUrl = localStorage.getItem('ai_api_url') || '';
-  const apiUrl = apiUrlInput || defaultUrl;
+  const apiUrl = apiUrlInput || defaultUrl || '/api/analyze';
 
   if (!apiUrl) {
     alert('Palun sisesta API URL (Vercel projekti aadress). Näide: https://sinu-projekt.vercel.app/api/analyze');
