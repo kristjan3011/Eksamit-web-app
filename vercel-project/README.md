@@ -2,13 +2,17 @@
 
 VIKK IT-süsteemide nooremspetsialisti (tase 4) eksamitöö planeerimise ja AI-hindamise veebirakendus.
 
+Toetab kahte AI pakkuja:
+- **Google Gemini 1.5 Flash** (soovitatav – tasuta tier Google AI Studio-st)
+- **OpenAI GPT-4o Mini** (nõuab OpenAI API võtit)
+
 ## Arhitektuur
 
 ```
 vercel-project/               ← Deploy'itav kaust
 ├── index.html                ← Frontend (Eksamitöö Abirakendus)
 ├── api/
-│   └── analyze.js            ← Google Gemini serverless API
+│   └── analyze.js            ← Serverless API (Gemini + OpenAI)
 ├── package.json
 ├── vercel.json               ← CORS + routing
 └── README.md
@@ -21,7 +25,7 @@ Eksamiabi/                    ← Ametlikud dokumendid (repo juures)
 ```
 
 - **Frontend:** Staatiline HTML/CSS/JS (localStorage, ühelehelised vaated)
-- **Backend:** Vercel Serverless Function (`/api/analyze`) → Google Gemini 1.5 Flash
+- **Backend:** Vercel Serverless Function (`/api/analyze`) → Gemini või OpenAI
 
 ---
 
@@ -29,17 +33,25 @@ Eksamiabi/                    ← Ametlikud dokumendid (repo juures)
 
 - [Node.js](https://nodejs.org/) 18+ (soovitatavalt LTS)
 - [Vercel CLI](https://vercel.com/docs/cli) (`npm i -g vercel`)
-- Google Gemini API võti (vt allpool)
+- API võti (vali üks):
+  - **Google Gemini** – loo tasuta võti [Google AI Studio](https://aistudio.google.com/app/apikey)
+  - **OpenAI** – loo võti [OpenAI Platform](https://platform.openai.com/api-keys) (nõuab laadimist)
 
 ---
 
-## 1. Google Gemini API võtme hankimine
+## 1. API võtme hankimine
 
+### Google Gemini (soovitatav – tasuta)
 1. Mine [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Kliki **Create API key**
 3. Kopeeri võti (`AIza...`)
 
-> **Tähtis:** Ära jaga võtit kunagi frontend-koodis ega GitHubis. Seda kasutatakse **ainult** Verceli keskkonnamuutujana.
+### OpenAI GPT-4o Mini
+1. Mine [platform.openai.com](https://platform.openai.com/api-keys)
+2. Loo uus Secret Key
+3. Kopeeri võti (`sk-...`)
+
+> **Tähtis:** API võtit hoia turvaliselt. Ainus õige koht on Verceli keskkonnamuutuja.
 
 ---
 
@@ -52,21 +64,24 @@ cd vercel-project
 # Logi Vercelisse (esmakordsel kasutamisel)
 vercel login
 
-# Seosta projekt Vercel-ga (loob .vercel kausta)
+# Seosta projekt Vercel-ga
 vercel
 ```
 
 ---
 
-## 3. Keskkonnamuutuja seadmine
+## 3. Keskkonnamuutujate seadmine
 
-Lisa `GEMINI_API_KEY` Verceli keskkonnamuutujatesse:
+Lisa **vähemalt üks** järgmistest Verceli keskkonnamuutujatesse:
 
 ```bash
 cd vercel-project
+
+# Kui kasutad Google Geminit:
 vercel env add GEMINI_API_KEY
-# Vali: Production (ja soovi korral Preview / Development)
-# Sisesta oma API võti
+
+# KUI kasutad OpenAI-t:
+vercel env add OPENAI_API_KEY
 ```
 
 Või Vercel Dashboard → Project → Settings → Environment Variables.
@@ -76,21 +91,13 @@ Või Vercel Dashboard → Project → Settings → Environment Variables.
 ## 4. Deploy
 
 ```bash
-# Mine deploy'itavasse kausta
 cd vercel-project
-
-# Production deploy
 vercel --prod
 ```
 
-Peale deploy'd kuvatakse URL, nt:
-```
-https://minu-eksamitoo-ai.vercel.app
-```
-
 **Rakenduse osad:**
-- Frontend avaneb otse: `https://minu-eksamitoo-ai.vercel.app/`
-- API endpoint: `https://minu-eksamitoo-ai.vercel.app/api/analyze`
+- Frontend: `https://sinu-nimi.vercel.app/`
+- API: `https://sinu-nimi.vercel.app/api/analyze`
 
 ---
 
@@ -103,11 +110,12 @@ Content-Type: application/json
 
 {
   "text": "Eksamitöö kogu tekst siin...",
+  "provider": "gemini",
   "filename": "eksamitoo.docx"
 }
 ```
 
-> `filename` on valikuline – seda kasutatakse vaid AI promptis konteksti andmiseks.
+> `provider` võib olla `"gemini"` või `"openai"`. Kui puudub, kasutatakse Geminit.
 
 ### Vastus (200 OK)
 ```json
@@ -117,27 +125,15 @@ Content-Type: application/json
     "maxScore": 30,
     "percentage": 73,
     "verdict": "Hea töö, vajab täiendamist",
-    "summary": "Töö on üldjoontes korras, kuid puudu on Summary ja allikaid on ainult 3."
+    "summary": "Töö on üldjoontes korras..."
   },
-  "criteria": [
-    { "id": 1, "name": "Vastavus teemale ja erialale", "score": 3, "maxScore": 3, "comment": "..." }
-  ],
-  "structure": [
-    { "name": "Tiitelleht", "present": true, "comment": "" }
-  ],
-  "formatting": [
-    { "name": "Times New Roman 12pt", "ok": true, "comment": "" }
-  ],
-  "missing": ["Summary puudub", "Allikaid ainult 3"],
-  "suggestions": ["Lisa konkreetsem sihtgrupp", "Lisa 2 allikat juurde"]
+  "criteria": [...],
+  "structure": [...],
+  "formatting": [...],
+  "missing": [...],
+  "suggestions": [...]
 }
 ```
-
-### Vead
-- `400` – liiga lühike tekst või vigane JSON
-- `405` – lubatud on ainult POST
-- `500` – `GEMINI_API_KEY` puudub
-- `502` – Gemini API tagastas vea
 
 ---
 
@@ -145,36 +141,29 @@ Content-Type: application/json
 
 | Oht | Lahendus |
 |-----|----------|
-| API võti lekib brauserisse | Võti hoitakse **ainult** Verceli serveripoolel (`process.env`) |
-| CORS rünnakud | API aktsepteerib päringuid kõigilt domeenidelt. Tootmises piira `Access-Control-Allow-Origin` oma domeenile kui vaja. |
-| Liiga pikk tekst | Gemini 1.5 Flash toetab ~1M tokenit (~700k sõna eesti keeles). Verceli päringu limit on 4.5 MB. |
-| Päringute rate limiting | Google Gemini tasuta tier: 15 RPM, 1500 RPD. Kui vaja rohkem, lülitu Google Cloud'ile. |
+| API võti lekib brauserisse | Võti hoitakse **ainult** Verceli serveripoolel |
+| CORS rünnakud | API aktsepteerib päringuid kõigilt domeenidelt |
+| Liiga pikk tekst | Gemini toetab ~1M tokenit; OpenAI GPT-4o Mini ~128k tokenit |
 
 ---
 
 ## Kulusid
 
-- **Vercel:** Serverless funktsioonid on tasuta tieris 100 GB-s / kuu (API päringud mahuvad kergesti sisse).
-- **Google Gemini 1.5 Flash:** Tasuta tier (ainult API keyga) – 15 päringut/minutis, 1500 päringut/päevas. Piisab klassi suuruseks kasutamiseks.
+- **Vercel:** tasuta tier (100 GB-s / kuu)
+- **Google Gemini 1.5 Flash:** tasuta tier (15 RPM, 1500 RPD)
+- **OpenAI GPT-4o Mini:** odav (~$0.15 / 1M input tokens)
 
 ---
 
 ## Arendus
 
 ```bash
-# Kohalik test (käivitab Verceli dev serveri http://localhost:3000)
 cd vercel-project
 vercel dev
 ```
 
-Kohalikus arenduses pead samuti `GEMINI_API_KEY` seadistama:
-```bash
-cd vercel-project
-vercel env pull .env.development.local
-```
-
 ---
 
-## Autor ja litsents
+## Autor
 
 Projekt loodud VIKK IT-süsteemide nooremspetsialisti eriala eksamitöö raames.
