@@ -1,8 +1,10 @@
 /**
- * VIKK Eksamitöö AI Analüüs
- * Toetab Google Gemini ja OpenAI (ChatGPT)
+ * VIKK Eksamitöö AI Analüüs — Vercel Serverless Function
+ * Asukoht: api/analyze.js  ← PEAB olema api/ kaustas, mitte juurkaustas!
  *
- * Keskkonnamuutujad: GEMINI_API_KEY, OPENAI_API_KEY
+ * Keskkonnamuutujad (Vercel Dashboard → Settings → Environment Variables):
+ *   GEMINI_API_KEY   – Google AI Studio tasuta võti
+ *   OPENAI_API_KEY   – OpenAI võti (valikuline)
  */
 
 const SYSTEM_PROMPT = `Sa oled Viljandi Kutseõppekeskuse (VIKK) IT-süsteemide nooremspetsialisti (tase 4) eksamitöö ekspert-hindaja.
@@ -37,7 +39,7 @@ STRUKTUURI KONTROLL (märkiga present=true/false):
 - Lisad (vajadusel, iga lisa uuelt lehelt)
 - Summary (ingliskeelne, max 1 lk, ei ole otsetõlge)
 
-VORMISTUS (märkida ok=true/false või unknown):
+VORMISTUS (märkida ok=true/false):
 - A4, ühepoolselt
 - Times New Roman 12pt (põhitekst)
 - Pealkiri 1: 16pt paks SUURTÄHED
@@ -49,41 +51,20 @@ VORMISTUS (märkida ok=true/false või unknown):
 - Koodiread: Courier New / Consolas
 - APA viitamine tekstis
 
-OSAKUTSETE MIINIMUMMAHUTUSED:
-- Kasutajatoe tehnik: 40h
-- IT-tehnik: 40h
-- IT-haldustehnik: 76h
-- Täiskutse: 156h
-
-ANALÜÜSI SAMMUD:
-1. Loe töö tekst läbi.
-2. Hinda 10 kriteeriumit ja struktuuri/vormistust.
-3. Arvuta üldskoor (0-30) ja protsent.
-4. Kirjuta 3-5 konkreetset soovitust parandamiseks.
-5. Tee nimekiri kõige olulisematest puudujääkidest.
-
-VASTA AINULT JSON-FORMAADIS. Ära lisa markdown ega selgitusi väljaspool JSON-i.
-Vastuse struktuur peab olema täpselt selline:
-
+VASTA AINULT JSON-FORMAADIS, ilma markdown koodiploki märgeteta. Täpselt selline struktuur:
 {
-  "overall": {
-    "score": 0,
-    "maxScore": 30,
-    "percentage": 0,
-    "verdict": "Sõnaline hinnang (nt Hea töö, vajab täiendamist, Nõrk jne)",
-    "summary": "Lühikokkuvõte 2-3 lauses"
-  },
+  "overall": { "score": 0, "maxScore": 30, "percentage": 0, "verdict": "...", "summary": "..." },
   "criteria": [
-    { "id": 1, "name": "Vastavus teemale ja erialale", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 2, "name": "Praktiline kasutatavus", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 3, "name": "Töö maht, vahendid ja võtted", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 4, "name": "Teoreetilise osa sisu ja vormistus", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 5, "name": "Erialane terminoloogia ja keelekasutus", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 6, "name": "Kasutatud allikate loetelu", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 7, "name": "Praktilise lahenduse kvaliteet", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 8, "name": "Jätkusuutlikkus ja edasiarendamine", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 9, "name": "Retsensendi arvamus", "score": 0, "maxScore": 3, "comment": "Põhjendus" },
-    { "id": 10, "name": "Töö kaitsmine", "score": 0, "maxScore": 3, "comment": "Põhjendus" }
+    { "id": 1, "name": "Vastavus teemale ja erialale", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 2, "name": "Praktiline kasutatavus", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 3, "name": "Töö maht, vahendid ja võtted", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 4, "name": "Teoreetilise osa sisu ja vormistus", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 5, "name": "Erialane terminoloogia ja keelekasutus", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 6, "name": "Kasutatud allikate loetelu", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 7, "name": "Praktilise lahenduse kvaliteet", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 8, "name": "Jätkusuutlikkus ja edasiarendamine", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 9, "name": "Retsensendi arvamus", "score": 0, "maxScore": 3, "comment": "..." },
+    { "id": 10, "name": "Töö kaitsmine", "score": 0, "maxScore": 3, "comment": "..." }
   ],
   "structure": [
     { "name": "Tiitelleht", "present": true, "comment": "..." },
@@ -106,43 +87,38 @@ Vastuse struktuur peab olema täpselt selline:
     { "name": "Korrektsed veerised", "ok": false, "comment": "" },
     { "name": "APA viitamine", "ok": true, "comment": "" }
   ],
-  "missing": ["Näide: Summary puudub", "Näide: Allikaid ainult 3"],
-  "suggestions": ["Näide: Lisa konkreetsem sihtgrupp", "Näide: Testi praktilist lahendust põhjalikumalt"]
+  "missing": ["..."],
+  "suggestions": ["..."]
 }`;
 
 function parseJsonFromText(text) {
-  try {
-    return JSON.parse(text);
-  } catch (_) {}
+  // 1. Proovi otse
+  try { return JSON.parse(text); } catch (_) {}
 
+  // 2. Proovi markdown koodiplokist
   const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (mdMatch) {
-    try {
-      return JSON.parse(mdMatch[1]);
-    } catch (_) {}
+    try { return JSON.parse(mdMatch[1]); } catch (_) {}
   }
 
+  // 3. Leia esimene { ja viimane }
   const first = text.indexOf('{');
-  const last = text.lastIndexOf('}');
-  if (first !== -1 && last !== -1 && last > first) {
-    try {
-      return JSON.parse(text.slice(first, last + 1));
-    } catch (_) {}
+  const last  = text.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    try { return JSON.parse(text.slice(first, last + 1)); } catch (_) {}
   }
 
-  throw new Error('Ei suutnud AI vastusest JSON-i parsida');
+  throw new Error('Ei suutnud AI vastusest JSON-i parsida. Proovi uuesti.');
 }
 
-function normalizeResult(result) {
-  if (!result.overall) {
-    result.overall = { score: 0, maxScore: 30, percentage: 0, verdict: 'Ei saanud hinnangut', summary: '' };
-  }
-  if (!Array.isArray(result.criteria)) result.criteria = [];
-  if (!Array.isArray(result.structure)) result.structure = [];
-  if (!Array.isArray(result.formatting)) result.formatting = [];
-  if (!Array.isArray(result.missing)) result.missing = [];
-  if (!Array.isArray(result.suggestions)) result.suggestions = [];
-  return result;
+function normalizeResult(r) {
+  if (!r.overall) r.overall = { score: 0, maxScore: 30, percentage: 0, verdict: 'Ei saanud hinnangut', summary: '' };
+  if (!Array.isArray(r.criteria))   r.criteria   = [];
+  if (!Array.isArray(r.structure))  r.structure  = [];
+  if (!Array.isArray(r.formatting)) r.formatting = [];
+  if (!Array.isArray(r.missing))    r.missing    = [];
+  if (!Array.isArray(r.suggestions)) r.suggestions = [];
+  return r;
 }
 
 async function callGemini(apiKey, text) {
@@ -155,26 +131,17 @@ async function callGemini(apiKey, text) {
       generationConfig: { temperature: 0.15, maxOutputTokens: 4096 }
     })
   });
-
   const data = await res.json();
-  if (!res.ok) {
-    const msg = data.error?.message || JSON.stringify(data);
-    throw new Error(`Gemini API viga (${res.status}): ${msg}`);
-  }
-
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error('Gemini API vastus oli tühi');
-  return normalizeResult(parseJsonFromText(rawText));
+  if (!res.ok) throw new Error(`Gemini API viga (${res.status}): ${data.error?.message || JSON.stringify(data)}`);
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!raw) throw new Error('Gemini API vastus oli tühi');
+  return normalizeResult(parseJsonFromText(raw));
 }
 
 async function callOpenAI(apiKey, text) {
-  const url = 'https://api.openai.com/v1/chat/completions';
-  const res = await fetch(url, {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
@@ -185,19 +152,15 @@ async function callOpenAI(apiKey, text) {
       max_tokens: 4096
     })
   });
-
   const data = await res.json();
-  if (!res.ok) {
-    const msg = data.error?.message || data.message || JSON.stringify(data);
-    throw new Error(`OpenAI API viga (${res.status}): ${msg}`);
-  }
-
-  const rawText = data.choices?.[0]?.message?.content;
-  if (!rawText) throw new Error('OpenAI API vastus oli tühi');
-  return normalizeResult(parseJsonFromText(rawText));
+  if (!res.ok) throw new Error(`OpenAI API viga (${res.status}): ${data.error?.message || JSON.stringify(data)}`);
+  const raw = data.choices?.[0]?.message?.content;
+  if (!raw) throw new Error('OpenAI API vastus oli tühi');
+  return normalizeResult(parseJsonFromText(raw));
 }
 
 export default async function handler(req, res) {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -207,45 +170,41 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Lubatud ainult POST päringud' });
   }
 
-  let body = '';
-  try {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
+  // ── Body lugemine ──────────────────────────────────────────────────────────
+  // Vercel parsib JSON automaatselt kui Content-Type: application/json
+  // req.body on seega juba objekt. Kui pole, loeme käsitsi.
+  let body = req.body;
+  if (!body || typeof body !== 'object') {
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      body = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+    } catch {
+      return res.status(400).json({ error: 'Vigane JSON keha' });
     }
-    body = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
-  } catch {
-    return res.status(400).json({ error: 'Vigane JSON keha' });
   }
 
   const { text, provider } = body || {};
 
   if (!text || typeof text !== 'string' || text.trim().length < 100) {
-    return res.status(400).json({
-      error: 'Liiga lühike tekst. Eksamitöö peab sisaldama rohkem kui 100 tähemärki.'
-    });
+    return res.status(400).json({ error: 'Liiga lühike tekst (min 100 tähemärki).' });
   }
 
-  const selectedProvider = provider || 'gemini';
-
+  // ── AI kutsumine ───────────────────────────────────────────────────────────
   try {
     let result;
-    if (selectedProvider === 'openai') {
-      const apiKey = (process.env.OPENAI_API_KEY || '').trim();
-      if (!apiKey) {
-        return res.status(500).json({ error: 'OPENAI_API_KEY keskkonnamuutuja on seadmata. Lisa see Vercel dashboardi.' });
-      }
-      result = await callOpenAI(apiKey, text);
+    if ((provider || 'gemini') === 'openai') {
+      const key = (process.env.OPENAI_API_KEY || '').trim();
+      if (!key) return res.status(500).json({ error: 'OPENAI_API_KEY puudub. Lisa see Vercel → Settings → Environment Variables.' });
+      result = await callOpenAI(key, text.trim());
     } else {
-      const apiKey = (process.env.GEMINI_API_KEY || '').trim();
-      if (!apiKey) {
-        return res.status(500).json({ error: 'GEMINI_API_KEY keskkonnamuutuja on seadmata. Lisa see Vercel dashboardi.' });
-      }
-      result = await callGemini(apiKey, text);
+      const key = (process.env.GEMINI_API_KEY || '').trim();
+      if (!key) return res.status(500).json({ error: 'GEMINI_API_KEY puudub. Lisa see Vercel → Settings → Environment Variables.' });
+      result = await callGemini(key, text.trim());
     }
-    res.status(200).json(result);
+    return res.status(200).json(result);
   } catch (err) {
     console.error('AI analüüsi viga:', err);
-    res.status(502).json({ error: err.message || 'Serveri sisemine viga' });
+    return res.status(502).json({ error: err.message || 'Serveri sisemine viga' });
   }
 }
