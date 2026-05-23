@@ -1570,16 +1570,39 @@ async function runAiAnalysis() {
       body: JSON.stringify({ text: text.trim(), provider, filename: document.getElementById('ai-file-input').files[0]?.name })
     });
 
-    const data = await res.json();
-
+    // Kontrolli HTTP staatust ENNE res.json() kutsumist.
+    // Kui server tagastab HTML vealehekülje (404, 500 jne),
+    // siis res.json() annab "Unexpected token" vea.
     if (!res.ok) {
-      throw new Error(data.error || `Server tagastas vea ${res.status}`);
+      let errMsg = `Server tagastas vea ${res.status}`;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          const errData = await res.json();
+          errMsg = errData.error || errMsg;
+        } catch (_) {}
+      } else {
+        // HTML vastus – tõenäoliselt /api/analyze puudub või vale URL
+        if (res.status === 404) {
+          errMsg = `API ei leitud (404). Kontrolli: 1) fail on api/analyze.js kaustas (mitte juurkaustas), 2) Vercel on uuesti deploy'itud, 3) API URL on korrektne.`;
+        } else {
+          errMsg = `Server tagastas ${res.status} (mitte JSON). Vaata Vercel funktsiooni logisid.`;
+        }
+      }
+      throw new Error(errMsg);
     }
 
+    const data = await res.json();
     renderAiResults(data);
+
   } catch (err) {
-    alert('Analüüsi viga: ' + err.message);
-    console.error(err);
+    // Erista JSON parse viga serveri probleemist
+    let msg = err.message;
+    if (msg.includes('Unexpected token') || msg.includes('not valid JSON')) {
+      msg = 'Server saatis vigase vastuse (mitte JSON). Tõenäoliselt puudub api/analyze.js fail või on vale URL. Vaata Vercel logisid.';
+    }
+    alert('Analüüsi viga: ' + msg);
+    console.error('runAiAnalysis error:', err);
   } finally {
     loading.style.display = 'none';
   }
