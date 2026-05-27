@@ -253,6 +253,7 @@
 
   <div class="nav-section">AI Abi</div>
   <a data-page="ai" onclick="goPage('ai',this)"><span class="icon">🤖</span> AI Analüüs</a>
+  <a data-page="local-ai" onclick="goPage('local-ai',this)"><span class="icon">🔍</span> Tekstianalüüs</a>
 
   <div class="nav-section">Märkmed</div>
   <a data-page="notes" onclick="goPage('notes',this)"><span class="icon">📝</span> Päevik</a>
@@ -809,6 +810,30 @@
   </div>
 
   <div id="ai-results" style="display:none"></div>
+</div>
+
+<!-- ========== LOCAL AI / TEXT ANALYSIS ========== -->
+<div class="page" id="page-local-ai">
+  <h1>Tekstianalüüs</h1>
+  <p class="page-desc">Kohalik masinnägemine brauseris – analüüsib eksamitöö teksti ilma serverita. Otsib struktuuri, allikaid, märksõnu ja vormistust.</p>
+
+  <div class="alert alert-info">ℹ️ See analüüs toimub <strong>ainult sinu arvutis</strong> – teksti ei saadeta kuhugi. Soovituslik lisaks pilve AI analüüsile.</div>
+
+  <div class="card">
+    <div class="card-title">📄 Kleebi eksamitöö tekst</div>
+    <div class="form-row">
+      <textarea id="local-ai-input" rows="14" placeholder="Kopeeri siia oma eksamitöö kogu tekst (Wordist kopeerimine soovitatav)..." oninput="localAiText = this.value"></textarea>
+    </div>
+    <div class="flex flex-between" style="margin-top:10px">
+      <button class="btn btn-primary" onclick="runLocalAnalysis()">🔍 Analüüsi tekst</button>
+      <div class="flex" style="gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="loadLocalDemo()">🔮 Proovi demoga</button>
+        <button class="btn btn-outline btn-sm" onclick="clearLocalInput()">Tühjenda</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="local-ai-results"></div>
 </div>
 
 <!-- ========== NOTES ========== -->
@@ -1703,6 +1728,260 @@ function renderAiResults(data) {
   }
 
   container.innerHTML = html;
+}
+
+// ==================== LOCAL TEXT ANALYSIS (Machine Learning / Pattern Matching) ====================
+
+let localAiText = '';
+
+function runLocalAnalysis() {
+  const text = document.getElementById('local-ai-input').value;
+  localAiText = text;
+  const container = document.getElementById('local-ai-results');
+
+  if (!text || text.trim().length < 200) {
+    container.innerHTML = `<div class="card"><div class="alert alert-warning">Tekst on liiga lühike analüüsimiseks. Kopeeri sisse vähemalt terve eksamitöö osa (min 200 tähemärki).</div></div>`;
+    return;
+  }
+
+  const results = analyzeThesis(text);
+  container.innerHTML = renderLocalResults(results);
+}
+
+function clearLocalInput() {
+  document.getElementById('local-ai-input').value = '';
+  document.getElementById('local-ai-results').innerHTML = '';
+  localAiText = '';
+}
+
+function analyzeThesis(text) {
+  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const lower = text.toLowerCase();
+
+  const hasSection = (patterns) => lines.some(l => patterns.some(p => p.test(l)));
+
+  const sections = {
+    sissejuhatus: hasSection([/^1\.?\s*sissejuhatus/i, /^\s*sissejuhatus\s*$/i]),
+    kokkuvote: hasSection([/kokkuvõte/i, /^.*kokkuvõte.*$/im]),
+    summary: hasSection([/^summary/i, /inglisekeelne\s+kokkuvõte/i]),
+    allikad: hasSection([/kasutatud\s+allikad/i, /allikate\s+loetelu/i, /viited/i, /kirjandus/i]),
+    autentsus: hasSection([/autentsus/i, /autori\s+deklaratsioon/i]),
+    teooria: hasSection([/teoreetiline\s+osa/i, /teooria/i]),
+    praktiline: hasSection([/praktiline\s+osa/i, /lahenduse\s+loomine/i, /rakenduse\s+loomine/i]),
+    lisad: hasSection([/^lisa\s*\d/i, /lisad/i]),
+  };
+
+  const mentionsAI = /(tehisintellekt|chatgpt|gpt-4|gpt-3|openai|claude|gemini|copilot|midjourney|\bai\b|ti\s+)/i.test(text);
+  const hasAIDecl = /(ti\s*kasutamine|tehisintellekti\s*kasutamine|kasutasin\s*chatgpt|ai\s*deklaratsioon|ti-d\s*kasutasin)/i.test(text);
+
+  let sourceCount = 0;
+  const sourcePatterns = [
+    /[A-ZÄÖÜÕ][a-zäöüõ]+\s*,\s*[A-ZÄÖÜÕ]\.\s*\(\d{4}\)/g,
+    /[A-ZÄÖÜÕ][a-zäöüõ]+,\s*[A-ZÄÖÜÕ]\.?\s+et\s+al\./gi,
+    /^\d+\.\s+[A-ZÄÖÜÕ]/gm
+  ];
+  const sourcesFound = new Set();
+  sourcePatterns.forEach(p => {
+    const matches = text.match(p);
+    if (matches) matches.forEach(m => sourcesFound.add(m));
+  });
+  sourceCount = sourcesFound.size;
+
+  const estimatedPages = Math.round(text.length / 1800);
+
+  const checks = {
+    eesmark: /(eesmärk|eesmark|eesmärgid|eesmargid)/i.test(text),
+    ulesanded: /(ülesanne|ulesanne|ülesanded|ulesanded)/i.test(text),
+    ajakava: /(ajakava|tegevuskava|tegevusplaan)/i.test(text),
+    eelarve: /(eelarve|maht\s*\d+\s*tundi|156\s*tundi)/i.test(text),
+    testimine: /(testimine|testisin|testiplaan|testid|testimisel)/i.test(text),
+    paigaldus: /(paigaldus|juurutamine|juurutasin|paigaldasin|deploy)/i.test(text),
+    turvalisus: /(turvalisus|infoturbe|krüpteerimine|räsimine|ISKE|iso.27000|turvatest)/i.test(text),
+    eneseanalüüs: /(eneseanalüüs|eneseanaluus|omadused|puudused|reflekteerimine)/i.test(text),
+    edasiarendus: /(edasiarendus|jätkusuutlikkus|jatkusuutlikkus|alternatiivne|tulevikus|arenguvõimal)/i.test(text),
+    klient: /(klient|kasutaja|sihtgrupp|tellij|tööandja|organisatsioon)/i.test(text),
+    meeskond: /(meeskond|tiim|kaaslase|juhendaja)/i.test(text),
+    terminoloogia: /(\(inglise\s+keel| inglise\s+keels|\( ingl|\(en\)|\(en:\s)/i.test(text),
+    tabel: /(tabel\s*\d|joonis\s*\d)/i.test(text),
+    kood: /(kood|koodilõik|funktsioon|script|konfiguratsioon|käsk|command)/i.test(text),
+  };
+
+  const critical = [];
+  const warnings = [];
+  const positives = [];
+
+  if (!sections.sissejuhatus) critical.push('Puudub <strong>Sissejuhatus</strong> või see pole korrektselt pealkirjastatud.');
+  if (!sections.kokkuvote) critical.push('Puudub <strong>Kokkuvõte</strong>.');
+  if (!sections.summary) critical.push('Puudub ingliskeelne <strong>Summary</strong>.');
+  if (!sections.allikad) critical.push('Puudub <strong>Kasutatud allikate loetelu</strong> või see pole leitav.');
+  if (!sections.autentsus) critical.push('Puudub <strong>Autentsuse deklaratsioon</strong>.');
+  if (!sections.praktiline) critical.push('Puudub <strong>Praktilise osa kirjeldus</strong>.');
+  if (sourceCount < 5) critical.push(`Allikaid on liiga vähe: leitud ~${sourceCount}, nõutud vähemalt 5. Wikipedia ja TI ei loe!`);
+  if (!checks.eesmark) critical.push('Puudub töö <strong>eesmärgi</strong> sõnastus.');
+
+  if (mentionsAI && !hasAIDecl) critical.push('Töös mainitakse tehisintellekti, kuid puudub <strong>TI kasutuse deklaratsioon</strong> (nõutud sissejuhatuses või eraldi alaosas).');
+
+  if (estimatedPages < 15) warnings.push(`Teksti maht on hinnanguliselt ~${estimatedPages} lehekülge. Miinimum on 20 lk (soovituslikult 25-30).`);
+  if (estimatedPages > 40) warnings.push(`Teksti maht on hinnanguliselt ~${estimatedPages} lehekülge. Maksimum on 35 lk + lisad.`);
+  if (!sections.teooria) warnings.push('Ei leitud selget <strong>teoreetilise osa</strong> peatükki.');
+  if (!sections.lisad && text.length > 30000) warnings.push('Töömahu järgi võiks kaaluda lisade lisamist.');
+  if (!checks.ulesanded) warnings.push('Ei leitud <strong>ülesannete</strong> loetelu.');
+  if (!checks.ajakava) warnings.push('Ei leitud <strong>tegevus- või ajakava</strong>.');
+  if (!checks.testimine) warnings.push('Ei leitud <strong>testimise</strong> kirjeldust (kriteerium B.3.3).');
+  if (!checks.paigaldus) warnings.push('Ei leitud <strong>juurutamise/paigaldamise</strong> kirjeldust (kriteerium B.3.2).');
+  if (!checks.turvalisus) warnings.push('Ei leitud <strong>infoturbe</strong> või turvatestide mainimist (kriteerium B.3.12).');
+  if (!checks.edasiarendus) warnings.push('Ei leitud <strong>edasiarendusvõimaluste</strong> kirjeldust.');
+  if (!checks.eneseanalüüs) warnings.push('Puudub <strong>eneseanalüüs</strong>.');
+  if (!checks.terminoloogia) warnings.push('Ei leitud <strong>ingliskeelseid termineid</strong> sulgudes. Nõutud erialane terminoloogia!');
+  if (!checks.tabel) warnings.push('Ei leitud <strong>tabeleid ega jooniseid</strong>. Kasuta visualiseerimist!');
+
+  if (sections.sissejuhatus) positives.push('Sissejuhatus on olemas.');
+  if (sections.kokkuvote) positives.push('Kokkuvõte on olemas.');
+  if (sections.summary) positives.push('Ingliskeelne summary on olemas.');
+  if (sections.allikad && sourceCount >= 5) positives.push(`Allikate loetelu on olemas (~${sourceCount} allikat).`);
+  if (sections.autentsus) positives.push('Autentsuse deklaratsioon on olemas.');
+  if (checks.eesmark) positives.push('Töö eesmärk on sõnastatud.');
+  if (checks.testimine) positives.push('Testimine on kirjeldatud.');
+  if (checks.paigaldus) positives.push('Juurutamine/paigaldamine on kirjeldatud.');
+  if (checks.turvalisus) positives.push('Infoturbe aspektid on käsitletud.');
+  if (checks.edasiarendus) positives.push('Edasiarendusvõimalused on kirjeldatud.');
+  if (checks.klient) positives.push('Klient/sihtgrupp on defineeritud.');
+  if (checks.ajakava) positives.push('Tegevus- või ajakava on olemas.');
+  if (estimatedPages >= 20 && estimatedPages <= 35) positives.push(`Töömahu hinnang (~${estimatedPages} lk) jääb soovituslikku vahemikku.`);
+  if (mentionsAI && hasAIDecl) positives.push('TI kasutamine on deklareeritud.');
+
+  return { critical, warnings, positives, estimatedPages, sourceCount, sections, checks };
+}
+
+function renderLocalResults(r) {
+  if (r.error) {
+    return `<div class="card"><div class="alert alert-warning">${r.error}</div></div>`;
+  }
+
+  const critHtml = r.critical.length
+    ? r.critical.map(i => `<div class="alert alert-danger" style="margin-bottom:8px">🔴 ${i}</div>`).join('')
+    : '<div class="alert alert-success" style="margin-bottom:8px">✅ Kriitilisi puudusi ei leitud!</div>';
+
+  const warnHtml = r.warnings.length
+    ? r.warnings.map(i => `<div class="alert alert-warning" style="margin-bottom:8px">🟡 ${i}</div>`).join('')
+    : '<div class="alert alert-success" style="margin-bottom:8px">✅ Tähelepanekuid ei ole!</div>';
+
+  const posHtml = r.positives.length
+    ? r.positives.map(i => `<div class="alert alert-success" style="margin-bottom:8px">🟢 ${i}</div>`).join('')
+    : '';
+
+  return `
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--accent2)">${r.estimatedPages}</div>
+        <div class="stat-label">Hinnanguline lk</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:${r.sourceCount >= 5 ? 'var(--green)' : 'var(--red)'}">${r.sourceCount}</div>
+        <div class="stat-label">Tuvastatud allikaid</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:${r.critical.length === 0 ? 'var(--green)' : 'var(--red)'}">${r.critical.length}</div>
+        <div class="stat-label">Kriitilist viga</div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:16px">
+      <div class="card">
+        <div class="card-title">📋 Struktuuri kontroll</div>
+        ${Object.entries(r.sections).map(([name, found]) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">
+            <div style="width:10px;height:10px;border-radius:50%;background:${found ? 'var(--green)' : 'var(--red)'}"></div>
+            <span style="flex:1;text-transform:capitalize;">${name}</span>
+            <span style="font-weight:700;color:${found ? 'var(--green)' : 'var(--red)'}">${found ? 'OK' : 'Puudub'}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="card">
+        <div class="card-title">📝 Sisuline kontroll</div>
+        ${Object.entries(r.checks).map(([name, found]) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">
+            <div style="width:10px;height:10px;border-radius:50%;background:${found ? 'var(--green)' : 'var(--orange)'}"></div>
+            <span style="flex:1;text-transform:capitalize;">${name}</span>
+            <span style="font-weight:700;color:${found ? 'var(--green)' : 'var(--orange)'}">${found ? 'OK' : '?'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">🔴 Kriitilised puudused (${r.critical.length})</div>
+      ${critHtml}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">🟡 Tähelepanekud (${r.warnings.length})</div>
+      ${warnHtml}
+    </div>
+
+    ${posHtml ? `
+    <div class="card" style="margin-bottom:16px; border-color:var(--green)">
+      <div class="card-title" style="color:var(--green)">🟢 Positiivsed (${r.positives.length})</div>
+      ${posHtml}
+    </div>` : ''}
+  `;
+}
+
+function loadLocalDemo() {
+  const demoText = `1. SISSEJUHATUS
+
+Eesmärk
+Töö eesmärgiks on juurutada Active Directory teenus ettevõttes OÜ Näide.
+
+Ülesanded
+1. AD struktuuri kavandamine
+2. Grupipoliitikate seadistamine
+3. Kasutajate importimine
+4. Testimine ja dokumenteerimine
+
+Ajakava
+Nädal 1: planeerimine
+Nädal 2: paigaldamine
+Nädal 3: testimine
+
+2. TEOREETILINE OSA
+
+Active Directory (AD) on Microsofti katalogiteenus, mis pakub autentimist ja autoriseerimist Windowsi keskkonnas.
+
+3. PRAKTIILINE OSA
+
+Paigaldasin Windows Server 2022 ja konfigureerisin AD DS rolli. Testisin kasutajate sisselogimist ja paroolipoliitikaid.
+
+Testimine
+Testiplaanis oli 5 testi. Kõik testid läbiti edukalt.
+
+Juurutamine
+Lahendus juurutati tootmiskeskkonda 15.03.2024.
+
+Turvalisus
+ISKE tase M. Krüpteerimine ja räsimine on kasutusel.
+
+4. KOKKUVÕTE
+
+Töö tulemusena valmis toimiv AD keskkond.
+
+Edasiarendus
+Tulevikus plaanitakse lisada MFA ja conditional access.
+
+Kasutatud allikad
+1. Microsoft Learn, Active Directory documentation, 2023
+2. Minasi, K., Mastering Active Directory, 2019
+3. Veebel, A., Windows Server haldus, 2021
+
+Summary
+This thesis describes the implementation of Active Directory in a small company. The solution was tested and deployed successfully.
+
+Autentsus
+Mina, Kristjan, kinnitan, et see töö on minu enda looming.`;
+
+  document.getElementById('local-ai-input').value = demoText;
+  localAiText = demoText;
+  runLocalAnalysis();
 }
 
 // ===== INIT =====
