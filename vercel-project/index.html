@@ -225,6 +225,9 @@
     <div class="subtitle">IT-süsteemide nooremspetsialist, tase 4 · VIKK 2027/28</div>
   </div>
   <div class="spacer"></div>
+  <button class="btn btn-sm btn-outline" onclick="exportData()" title="Salvesta kõik andmed JSON-failina">⬇️ Ekspordi</button>
+  <button class="btn btn-sm btn-outline" onclick="document.getElementById('import-file').click()" title="Laadi varasemad andmed JSON-failist">⬆️ Impordi</button>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
   <span class="badge" id="overall-badge">Alustamata</span>
 </header>
 
@@ -2184,6 +2187,45 @@ Mina, Kristjan, kinnitan, et see töö on minu enda looming.`;
   document.getElementById('local-ai-input').value = demoText;
   localAiText = demoText;
   runLocalAnalysis();
+}
+
+// ===== EXPORT / IMPORT =====
+function exportData() {
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    state: JSON.parse(localStorage.getItem('eksamitoo_state') || '{}'),
+    ai_api_url: localStorage.getItem('ai_api_url') || '',
+    ai_provider: localStorage.getItem('ai_provider') || 'gemini'
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'eksamitoo-andmed_' + new Date().toLocaleDateString('et-EE') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!confirm('See asendab kõik olemasolevad andmed. Kas oled kindel?')) return;
+      if (data.state) localStorage.setItem('eksamitoo_state', JSON.stringify(data.state));
+      if (data.ai_api_url) localStorage.setItem('ai_api_url', data.ai_api_url);
+      if (data.ai_provider) localStorage.setItem('ai_provider', data.ai_provider);
+      alert('Andmed imporditud! Leht värskendatakse...');
+      location.reload();
+    } catch (err) {
+      alert('Viga faili lugemisel: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 // ===== INIT =====
