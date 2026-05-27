@@ -820,10 +820,27 @@
   <div class="alert alert-info">ℹ️ See analüüs toimub <strong>ainult sinu arvutis</strong> – teksti ei saadeta kuhugi. Soovituslik lisaks pilve AI analüüsile.</div>
 
   <div class="card">
-    <div class="card-title">📄 Kleebi eksamitöö tekst</div>
-    <div class="form-row">
-      <textarea id="local-ai-input" rows="14" placeholder="Kopeeri siia oma eksamitöö kogu tekst (Wordist kopeerimine soovitatav)..." oninput="localAiText = this.value"></textarea>
+    <div class="card-title">📄 Dokumendi sisestamine</div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('local','local-text',this)">Kleebi tekst</button>
+      <button class="tab" onclick="switchTab('local','local-file',this)">Laadi fail üles</button>
     </div>
+
+    <div class="tab-content active" id="local-local-text">
+      <div class="form-row">
+        <textarea id="local-ai-input" rows="12" placeholder="Kopeeri siia oma eksamitöö kogu tekst (Wordist kopeerimine soovitatav)..." oninput="localAiText = this.value"></textarea>
+      </div>
+    </div>
+
+    <div class="tab-content" id="local-local-file">
+      <div class="form-row">
+        <label>Vali fail (.docx, .pdf)</label>
+        <input type="file" id="local-ai-file" accept=".docx,.pdf" onchange="handleLocalFileSelect(this)">
+        <div class="form-hint">DOCX jaoks kasutatakse mammoth.js, PDF jaoks pdf.js (laetakse CDN-ist).</div>
+      </div>
+      <div id="local-file-preview" class="muted" style="margin-top:8px"></div>
+    </div>
+
     <div class="flex flex-between" style="margin-top:10px">
       <button class="btn btn-primary" onclick="runLocalAnalysis()">🔍 Analüüsi tekst</button>
       <div class="flex" style="gap:8px">
@@ -1733,14 +1750,16 @@ function renderAiResults(data) {
 // ==================== LOCAL TEXT ANALYSIS (Machine Learning / Pattern Matching) ====================
 
 let localAiText = '';
+let localAiFileText = '';
 
 function runLocalAnalysis() {
-  const text = document.getElementById('local-ai-input').value;
+  const textInput = document.getElementById('local-ai-input').value;
+  const text = localAiFileText || textInput;
   localAiText = text;
   const container = document.getElementById('local-ai-results');
 
   if (!text || text.trim().length < 200) {
-    container.innerHTML = `<div class="card"><div class="alert alert-warning">Tekst on liiga lühike analüüsimiseks. Kopeeri sisse vähemalt terve eksamitöö osa (min 200 tähemärki).</div></div>`;
+    container.innerHTML = `<div class="card"><div class="alert alert-warning">Tekst on liiga lühike analüüsimiseks. Kopeeri sisse vähemalt terve eksamitöö osa (min 200 tähemärki) või laadi suurem fail.</div></div>`;
     return;
   }
 
@@ -1750,6 +1769,9 @@ function runLocalAnalysis() {
 
 function clearLocalInput() {
   document.getElementById('local-ai-input').value = '';
+  document.getElementById('local-ai-file').value = '';
+  document.getElementById('local-file-preview').innerHTML = '';
+  localAiFileText = '';
   document.getElementById('local-ai-results').innerHTML = '';
   localAiText = '';
 }
@@ -2029,6 +2051,82 @@ function renderLocalResults(r) {
       ${posHtml}
     </div>` : ''}
   `;
+}
+
+async function handleLocalFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('local-file-preview');
+
+  if (file.name.endsWith('.txt')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      localAiFileText = e.target.result;
+      preview.innerHTML = `<span class="tag tag-green">✓</span> TXT loetud: ${escapeHtml(file.name)} (${localAiFileText.length} tähemärki)`;
+      document.getElementById('local-ai-input').value = localAiFileText;
+    };
+    reader.readAsText(file, 'UTF-8');
+  } else if (file.name.endsWith('.docx')) {
+    preview.innerHTML = 'Laen DOCX teeki...';
+    loadMammoth().then(() => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        mammoth.extractRawText({ arrayBuffer: e.target.result })
+          .then(result => {
+            localAiFileText = result.value;
+            preview.innerHTML = `<span class="tag tag-green">✓</span> DOCX loetud: ${escapeHtml(file.name)} (${localAiFileText.length} tähemärki)`;
+            document.getElementById('local-ai-input').value = localAiFileText;
+          })
+          .catch(err => {
+            preview.innerHTML = `<span class="tag tag-red">Viga: ${escapeHtml(err.message)}</span>`;
+          });
+      };
+      reader.readAsArrayBuffer(file);
+    }).catch(err => {
+      preview.innerHTML = `<span class="tag tag-red">Viga: ${escapeHtml(err.message)}</span>`;
+    });
+  } else if (file.name.endsWith('.pdf')) {
+    preview.innerHTML = 'Laen PDF teeki...';
+    loadPdfJs().then(async () => {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try {
+          const pdf = await pdfjsLib.getDocument({ data: e.target.result }).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n';
+          }
+          localAiFileText = fullText;
+          preview.innerHTML = `<span class="tag tag-green">✓</span> PDF loetud: ${escapeHtml(file.name)} (${pdf.numPages} lk, ${localAiFileText.length} tähemärki)`;
+          document.getElementById('local-ai-input').value = localAiFileText;
+        } catch (err) {
+          preview.innerHTML = `<span class="tag tag-red">Viga: ${escapeHtml(err.message)}</span>`;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }).catch(err => {
+      preview.innerHTML = `<span class="tag tag-red">Viga: ${escapeHtml(err.message)}</span>`;
+    });
+  } else {
+    preview.innerHTML = '<span class="tag tag-red">Toetatud formaadid: .txt, .docx, .pdf</span>';
+  }
+}
+
+function loadPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    script.onerror = () => reject(new Error('PDF.js teeki ei õnnestunud laadida'));
+    document.head.appendChild(script);
+  });
 }
 
 function loadLocalDemo() {
