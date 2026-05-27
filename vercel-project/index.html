@@ -1757,28 +1757,41 @@ function clearLocalInput() {
 function analyzeThesis(text) {
   const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
   const lower = text.toLowerCase();
+  const first30 = lines.slice(0, 30).join(' ').toLowerCase();
+  const last30 = lines.slice(-30).join(' ').toLowerCase();
 
   const hasSection = (patterns) => lines.some(l => patterns.some(p => p.test(l)));
+  const hasInText = (patterns) => patterns.some(p => p.test(text));
 
+  // ── 1. STRUKTUURI KONTROLL (traditsiooniline + projektdokumendi variandid)
   const sections = {
-    sissejuhatus: hasSection([/^1\.?\s*sissejuhatus/i, /^\s*sissejuhatus\s*$/i]),
-    kokkuvote: hasSection([/kokkuvõte/i, /^.*kokkuvõte.*$/im]),
-    summary: hasSection([/^summary/i, /inglisekeelne\s+kokkuvõte/i]),
-    allikad: hasSection([/kasutatud\s+allikad/i, /allikate\s+loetelu/i, /viited/i, /kirjandus/i]),
-    autentsus: hasSection([/autentsus/i, /autori\s+deklaratsioon/i]),
-    teooria: hasSection([/teoreetiline\s+osa/i, /teooria/i]),
-    praktiline: hasSection([/praktiline\s+osa/i, /lahenduse\s+loomine/i, /rakenduse\s+loomine/i]),
-    lisad: hasSection([/^lisa\s*\d/i, /lisad/i]),
+    sissejuhatus: hasSection([/^1\.?\s*sissejuhatus/i, /^\s*sissejuhatus\s*$/i, /^(1\.|)\s*juhtimine/i, /^(1\.|)\s*�tldosa/i, /^(1\.|)\s*projekti\s*kirjeldus/i]),
+    kokkuvote: hasSection([/kokkuvõte/i, /^.*kokkuvõte.*$/im, /^(\d+\.|)j�reldused/i, /^(\d+\.|)l�pps�na/i]),
+    summary: hasSection([/^summary/i, /inglisekeelne\s+kokkuvõte/i, /abstract/i]),
+    allikad: hasSection([/kasutatud\s+allikad/i, /allikate\s+loetelu/i, /viited/i, /kirjandus/i, /kasutatud\s*materjalid/i, /reference/i]),
+    autentsus: hasSection([/autentsus/i, /autori\s+deklaratsioon/i, /autentsuse\s*kinnitus/i, /deklaratsioon/i]),
+    teooria: hasSection([/teoreetiline\s+osa/i, /teooria/i, /�levaade/i, /arhitektuuri\s*�levaade/i, /olemasolev\s+olukord/i, /hetkeolukord/i, /taustinfo/i]),
+    praktiline: hasSection([/praktiline\s+osa/i, /lahenduse\s+loomine/i, /rakenduse\s+loomine/i, /teostus/i, /implementatsioon/i, /realiseerimine/i, /praktiline\s*t��/i]),
+    lisad: hasSection([/^lisa\s*\d/i, /lisad/i, /lisa\s+1/i, /appendix/i]),
   };
 
-  const mentionsAI = /(tehisintellekt|chatgpt|gpt-4|gpt-3|openai|claude|gemini|copilot|midjourney|\bai\b|ti\s+)/i.test(text);
-  const hasAIDecl = /(ti\s*kasutamine|tehisintellekti\s*kasutamine|kasutasin\s*chatgpt|ai\s*deklaratsioon|ti-d\s*kasutasin)/i.test(text);
+  // ── 2. SISSEJUHATUSE 4 PUNTI (Eksamit�� juhend §1.6.1)
+  const introChecks = {
+    pohjendus: /(p�hjendus|miks|valik|aktuaalsus|vajalikkus)/i.test(first30),
+    eesmark: /(eesm�rk|eesmark|eesm�rgid)/i.test(first30),
+    allikad: /(allik|kirjandus|kasutatud)/i.test(first30),
+    ylesehitus: /(�lesehitus|struktuur|peat�kk|j�rgneb)/i.test(first30),
+  };
+  const introScore = Object.values(introChecks).filter(Boolean).length;
 
+  // ── 3. ALLIKAD & KVALITEET
   let sourceCount = 0;
+  let hasWikipedia = false;
   const sourcePatterns = [
     /[A-ZÄÖÜÕ][a-zäöüõ]+\s*,\s*[A-ZÄÖÜÕ]\.\s*\(\d{4}\)/g,
     /[A-ZÄÖÜÕ][a-zäöüõ]+,\s*[A-ZÄÖÜÕ]\.?\s+et\s+al\./gi,
-    /^\d+\.\s+[A-ZÄÖÜÕ]/gm
+    /^\d+\.\s+[A-ZÄÖÜÕ]/gm,
+    /https?:\/\/[^\s]+/g
   ];
   const sourcesFound = new Set();
   sourcePatterns.forEach(p => {
@@ -1786,71 +1799,127 @@ function analyzeThesis(text) {
     if (matches) matches.forEach(m => sourcesFound.add(m));
   });
   sourceCount = sourcesFound.size;
+  if (/wikipedia|vikipeedia/i.test(text)) hasWikipedia = true;
 
-  const estimatedPages = Math.round(text.length / 1800);
+  // ── 4. TI KASUTAMINE & DEKLARATSIOON
+  const mentionsAI = /(tehisintellekt|chatgpt|gpt-4|gpt-3|openai|claude|gemini|copilot|midjourney|llm|copilot|\bai\b|ti\s+)/i.test(text);
+  const aiDeclMatch = text.match(/(ti\s*kasutamine|tehisintellekti\s*kasutamine|kasutasin\s*chatgpt|ai\s*deklaratsioon|ti-d\s*kasutasin)[\s\S]{0,800}/i);
+  const hasAIDecl = !!aiDeclMatch;
+  const aiDeclLength = aiDeclMatch ? aiDeclMatch[0].length : 0;
+  const aiDeclTooShort = hasAIDecl && aiDeclLength < 150;
 
-  const checks = {
-    eesmark: /(eesmärk|eesmark|eesmärgid|eesmargid)/i.test(text),
-    ulesanded: /(ülesanne|ulesanne|ülesanded|ulesanded)/i.test(text),
-    ajakava: /(ajakava|tegevuskava|tegevusplaan)/i.test(text),
-    eelarve: /(eelarve|maht\s*\d+\s*tundi|156\s*tundi)/i.test(text),
-    testimine: /(testimine|testisin|testiplaan|testid|testimisel)/i.test(text),
-    paigaldus: /(paigaldus|juurutamine|juurutasin|paigaldasin|deploy)/i.test(text),
-    turvalisus: /(turvalisus|infoturbe|krüpteerimine|räsimine|ISKE|iso.27000|turvatest)/i.test(text),
-    eneseanalüüs: /(eneseanalüüs|eneseanaluus|omadused|puudused|reflekteerimine)/i.test(text),
-    edasiarendus: /(edasiarendus|jätkusuutlikkus|jatkusuutlikkus|alternatiivne|tulevikus|arenguvõimal)/i.test(text),
-    klient: /(klient|kasutaja|sihtgrupp|tellij|tööandja|organisatsioon)/i.test(text),
-    meeskond: /(meeskond|tiim|kaaslase|juhendaja)/i.test(text),
-    terminoloogia: /(\(inglise\s+keel| inglise\s+keels|\( ingl|\(en\)|\(en:\s)/i.test(text),
-    tabel: /(tabel\s*\d|joonis\s*\d)/i.test(text),
-    kood: /(kood|koodilõik|funktsioon|script|konfiguratsioon|käsk|command)/i.test(text),
+  // ── 5. VORMISTUSE M�RKS�NAD (kas tekstis on kirjeldatud)
+  const formatting = {
+    a4: /(a4|formaadi|format)/i.test(text),
+    font: /(times\s*new\s*roman|font|fondi|kirjat��p)/i.test(text),
+    reavahe: /(reavahe|1[,.]5|intervall|spacing)/i.test(text),
+    veerised: /(veeris|marginaal|3\s*cm|2[,.]5\s*cm)/i.test(text),
+    viitamine: /(apa|viitamine|viide|allikaviide)/i.test(text),
+    lehekylg: /(lehek�lg|lehek�ljenumbrid|nummerdamine)/i.test(text),
   };
 
+  // ── 6. KOMPETENTSIDE T�ENDAMINE (Kutsestandard B.3.1–B.3.12)
+  const competencies = {
+    b31_taristu: /(kavandamine|planeerimine|ressurss|n�ud|tehniline\s*v�imalus)/i.test(text),
+    b32_haldus: /(paigaldus|juurutamine|hooldus|varund|monitoor|haldus)/i.test(text),
+    b33_testimine: /(testiplaan|testimine|testi\s*tulemus|kvaliteedi\s*kontroll)/i.test(text),
+    b34_doku: /(dokumentatsioon|dokumenteer|raport|juhend)/i.test(text),
+    b35_kasutaja: /(kasutajatugi|p��rdumine|helpdesk|klienditeenindus)/i.test(text),
+    b36_muudatus: /(muudatus|muudatuste\s*haldus|change\s*management)/i.test(text),
+    b37_teenus: /(teenus|tugiteenus|service|tase|sla)/i.test(text),
+    b38_probleem: /(probleem|t�rke|vea\s*otsing|troubleshoot)/i.test(text),
+    b39_juhendamine: /(juhendamine|koolitus|�petamine|personal)/i.test(text),
+    b310_suhted: /(tarnija|klient|tellij|partner|leping)/i.test(text),
+    b311_projekt: /(projekt|risk|ajaplaneer|ressursi\s*haldus|gantt)/i.test(text),
+    b312_turbe: /(ISKE|infoturbe|kr�pteer|r�si|turbepoliitik|firewall|turvatest)/i.test(text),
+  };
+  const compScore = Object.values(competencies).filter(Boolean).length;
+
+  // ── 7. SISULISED KONTROLLID
+  const checks = {
+    eesmark: /(eesm�rk|eesmark|eesm�rgid|eesmargid)/i.test(text),
+    ulesanded: /(�lesanne|ulesanne|�lesanded|ulesanded|tasks?)/i.test(text),
+    ajakava: /(ajakava|tegevuskava|tegevusplaan|gantt|milestone|aeg)/i.test(text),
+    eelarve: /(eelarve|maht\s*\d+\s*tundi|156\s*tundi|tunni\s*arvestus)/i.test(text),
+    testimine: /(testimine|testisin|testiplaan|testid|testimisel|unit\s*test)/i.test(text),
+    paigaldus: /(paigaldus|juurutamine|juurutasin|paigaldasin|deploy|install)/i.test(text),
+    turvalisus: /(turvalisus|infoturbe|kr�pteerimine|r�simine|ISKE|iso.27000|turvatest|firewall)/i.test(text),
+    eneseanalüüs: /(eneseanal�üs|eneseanaluus|omadused|puudused|reflekteerimine|tugevused|n�rkused)/i.test(text),
+    edasiarendus: /(edasiarendus|j�tkusuutlikkus|jatkusuutlikkus|alternatiivne|tulevikus|arenguv�imal|roadmap)/i.test(text),
+    klient: /(klient|kasutaja|sihtgrupp|tellij|t��andja|organisatsioon|ettev�te)/i.test(text),
+    meeskond: /(meeskond|tiim|kaaslase|juhendaja|koost��)/i.test(text),
+    terminoloogia: /(\(inglise\s+keel| inglise\s+keels|\( ingl|\(en\)|\(en:\s|ingl\.\s*keel)/i.test(text),
+    tabel: /(tabel\s*\d|joonis\s*\d|table\s*\d|figure\s*\d)/i.test(text),
+    kood: /(kood|koodil�ik|funktsioon|script|konfiguratsioon|k�sk|command|powershell|bash|cmd)/i.test(text),
+  };
+
+  // ── 8. T��MAHT (parandatud hinnang)
+  const estimatedPages = Math.max(1, Math.round(text.length / 1600));
+
+  // ── 9. KRIITILISED, HOIATUSED, POSITIIVSED
   const critical = [];
   const warnings = [];
   const positives = [];
 
-  if (!sections.sissejuhatus) critical.push('Puudub <strong>Sissejuhatus</strong> või see pole korrektselt pealkirjastatud.');
-  if (!sections.kokkuvote) critical.push('Puudub <strong>Kokkuvõte</strong>.');
-  if (!sections.summary) critical.push('Puudub ingliskeelne <strong>Summary</strong>.');
-  if (!sections.allikad) critical.push('Puudub <strong>Kasutatud allikate loetelu</strong> või see pole leitav.');
-  if (!sections.autentsus) critical.push('Puudub <strong>Autentsuse deklaratsioon</strong>.');
-  if (!sections.praktiline) critical.push('Puudub <strong>Praktilise osa kirjeldus</strong>.');
-  if (sourceCount < 5) critical.push(`Allikaid on liiga vähe: leitud ~${sourceCount}, nõutud vähemalt 5. Wikipedia ja TI ei loe!`);
-  if (!checks.eesmark) critical.push('Puudub töö <strong>eesmärgi</strong> sõnastus.');
+  // Kriitilised
+  if (!sections.sissejuhatus && introScore < 2) critical.push('Puudub <strong>Sissejuhatus</strong> või see pole korrektselt pealkirjastatud. Otsiti ka: Juhtimine, Projekti kirjeldus, �ldosa.');
+  if (!sections.kokkuvote) critical.push('Puudub <strong>Kokkuvõte</strong> (või J�reldused).');
+  if (!sections.summary) critical.push('Puudub ingliskeelne <strong>Summary</strong> (või Abstract).');
+  if (!sections.allikad && sourceCount < 3) critical.push('Puudub <strong>Kasutatud allikate loetelu</strong> ja tekstist leiti v�he viiteid.');
+  if (!sections.autentsus) critical.push('Puudub <strong>Autentsuse deklaratsioon</strong> (või Autentsuse kinnitus).');
+  if (!sections.praktiline) critical.push('Puudub <strong>Praktilise osa kirjeldus</strong>. Otsiti ka: Teostus, Implementatsioon, Realiseerimine.');
+  if (sourceCount < 5) critical.push(`Allikaid on liiga v�he: leitud ~${sourceCount}, n�utud v�hemalt 5. Wikipedia ja TI ei loe!`);
+  if (!checks.eesmark) critical.push('Puudub t�� <strong>eesm�rgi</strong> s�nastus.');
+  if (hasWikipedia) critical.push('Tekstis on <strong>Wikipedia</strong> viide – see EI SOBI allikaks!');
 
-  if (mentionsAI && !hasAIDecl) critical.push('Töös mainitakse tehisintellekti, kuid puudub <strong>TI kasutuse deklaratsioon</strong> (nõutud sissejuhatuses või eraldi alaosas).');
+  if (mentionsAI && !hasAIDecl) critical.push('T��s mainitakse tehisintellekti, kuid puudub <strong>TI kasutuse deklaratsioon</strong> (n�utud sissejuhatuses v�i eraldi alaosas).');
+  if (aiDeclTooShort) warnings.push('TI deklaratsioon on liiga l�hike (&lt;150 t�hem�rki). Kirjelda detailsemalt, mida ja kuidas kasutasid.');
 
-  if (estimatedPages < 15) warnings.push(`Teksti maht on hinnanguliselt ~${estimatedPages} lehekülge. Miinimum on 20 lk (soovituslikult 25-30).`);
-  if (estimatedPages > 40) warnings.push(`Teksti maht on hinnanguliselt ~${estimatedPages} lehekülge. Maksimum on 35 lk + lisad.`);
-  if (!sections.teooria) warnings.push('Ei leitud selget <strong>teoreetilise osa</strong> peatükki.');
-  if (!sections.lisad && text.length > 30000) warnings.push('Töömahu järgi võiks kaaluda lisade lisamist.');
-  if (!checks.ulesanded) warnings.push('Ei leitud <strong>ülesannete</strong> loetelu.');
-  if (!checks.ajakava) warnings.push('Ei leitud <strong>tegevus- või ajakava</strong>.');
+  // Hoiatused
+  if (estimatedPages < 20) warnings.push(`Teksti maht on hinnanguliselt ~${estimatedPages} lehek�lge. Miinimum on 20 lk (soovituslikult 25-30).`);
+  if (estimatedPages > 35) warnings.push(`Teksti maht on hinnanguliselt ~${estimatedPages} lehek�lge. Maksimum on 35 lk + lisad.`);
+  if (!sections.teooria) warnings.push('Ei leitud selget <strong>teoreetilise osa</strong> peat�kki. Otsiti ka: �levaade, Hetkeolukord, Taustinfo.');
+  if (!sections.lisad && text.length > 28000) warnings.push('T��mahu j�rgi v�iks kaaluda lisade lisamist.');
+  if (!checks.ulesanded) warnings.push('Ei leitud <strong>�lesannete</strong> loetelu.');
+  if (!checks.ajakava) warnings.push('Ei leitud <strong>tegevus- v�i ajakava</strong>.');
   if (!checks.testimine) warnings.push('Ei leitud <strong>testimise</strong> kirjeldust (kriteerium B.3.3).');
   if (!checks.paigaldus) warnings.push('Ei leitud <strong>juurutamise/paigaldamise</strong> kirjeldust (kriteerium B.3.2).');
-  if (!checks.turvalisus) warnings.push('Ei leitud <strong>infoturbe</strong> või turvatestide mainimist (kriteerium B.3.12).');
-  if (!checks.edasiarendus) warnings.push('Ei leitud <strong>edasiarendusvõimaluste</strong> kirjeldust.');
-  if (!checks.eneseanalüüs) warnings.push('Puudub <strong>eneseanalüüs</strong>.');
-  if (!checks.terminoloogia) warnings.push('Ei leitud <strong>ingliskeelseid termineid</strong> sulgudes. Nõutud erialane terminoloogia!');
+  if (!checks.turvalisus) warnings.push('Ei leitud <strong>infoturbe</strong> v�i turvatestide mainimist (kriteerium B.3.12).');
+  if (!checks.edasiarendus) warnings.push('Ei leitud <strong>edasiarendusv�imaluste</strong> kirjeldust.');
+  if (!checks.eneseanalüüs) warnings.push('Puudub <strong>eneseanal�üs</strong> (tugevused/n�rkused).');
+  if (!checks.terminoloogia) warnings.push('Ei leitud <strong>ingliskeelseid termineid</strong> sulgudes. N�utud erialane terminoloogia!');
   if (!checks.tabel) warnings.push('Ei leitud <strong>tabeleid ega jooniseid</strong>. Kasuta visualiseerimist!');
+  if (introScore < 4) warnings.push(`Sissejuhatuses leiti ${introScore}/4 n�utud punkti (p�hjendus, eesm�rk, allikad, �lesehitus).`);
+  if (compScore < 8) warnings.push(`Kompetentsidest leiti t�endus ainult ${compScore}/12-le. Kontrolli, kas k�ik B.3.1–B.3.12 on kajastatud.`);
 
+  // Vormistuse hoiatused
+  if (!formatting.font) warnings.push('Tekstis ei mainita <strong>kirjat��pi</strong> (Times New Roman, fondi suurus). Kontrolli VIKK vormistusjuhendit.');
+  if (!formatting.reavahe) warnings.push('Tekstis ei mainita <strong>reavahet</strong> (1,5). Kontrolli VIKK vormistusjuhendit.');
+
+  // Positiivsed
   if (sections.sissejuhatus) positives.push('Sissejuhatus on olemas.');
-  if (sections.kokkuvote) positives.push('Kokkuvõte on olemas.');
+  if (sections.kokkuvote) positives.push('Kokkuv�te on olemas.');
   if (sections.summary) positives.push('Ingliskeelne summary on olemas.');
   if (sections.allikad && sourceCount >= 5) positives.push(`Allikate loetelu on olemas (~${sourceCount} allikat).`);
   if (sections.autentsus) positives.push('Autentsuse deklaratsioon on olemas.');
-  if (checks.eesmark) positives.push('Töö eesmärk on sõnastatud.');
+  if (checks.eesmark) positives.push('T�� eesm�rk on s�nastatud.');
   if (checks.testimine) positives.push('Testimine on kirjeldatud.');
   if (checks.paigaldus) positives.push('Juurutamine/paigaldamine on kirjeldatud.');
-  if (checks.turvalisus) positives.push('Infoturbe aspektid on käsitletud.');
-  if (checks.edasiarendus) positives.push('Edasiarendusvõimalused on kirjeldatud.');
+  if (checks.turvalisus) positives.push('Infoturbe aspektid on k�sitletud.');
+  if (checks.edasiarendus) positives.push('Edasiarendusv�imalused on kirjeldatud.');
   if (checks.klient) positives.push('Klient/sihtgrupp on defineeritud.');
-  if (checks.ajakava) positives.push('Tegevus- või ajakava on olemas.');
-  if (estimatedPages >= 20 && estimatedPages <= 35) positives.push(`Töömahu hinnang (~${estimatedPages} lk) jääb soovituslikku vahemikku.`);
-  if (mentionsAI && hasAIDecl) positives.push('TI kasutamine on deklareeritud.');
+  if (checks.ajakava) positives.push('Tegevus- v�i ajakava on olemas.');
+  if (estimatedPages >= 20 && estimatedPages <= 35) positives.push(`T��mahu hinnang (~${estimatedPages} lk) j��b soovituslikku vahemikku.`);
+  if (mentionsAI && hasAIDecl && !aiDeclTooShort) positives.push('TI kasutamine on korrektselt deklareeritud.');
+  if (compScore >= 10) positives.push(`Kompetentside t�endus on tugev (${compScore}/12).`);
+  if (!hasWikipedia && sourceCount >= 5) positives.push('Allikate hulgas pole Wikipedia viiteid.');
 
-  return { critical, warnings, positives, estimatedPages, sourceCount, sections, checks };
+  return {
+    critical, warnings, positives,
+    estimatedPages, sourceCount,
+    sections, checks, formatting, competencies,
+    introScore, compScore, hasWikipedia, aiDeclTooShort
+  };
 }
 
 function renderLocalResults(r) {
@@ -1870,6 +1939,11 @@ function renderLocalResults(r) {
     ? r.positives.map(i => `<div class="alert alert-success" style="margin-bottom:8px">🟢 ${i}</div>`).join('')
     : '';
 
+  // Sissejhatuse progress ring
+  const introColor = r.introScore >= 4 ? 'var(--green)' : r.introScore >= 2 ? 'var(--orange)' : 'var(--red)';
+  // Kompetentside progress ring
+  const compColor = r.compScore >= 10 ? 'var(--green)' : r.compScore >= 6 ? 'var(--orange)' : 'var(--red)';
+
   return `
     <div class="grid3" style="margin-bottom:16px">
       <div class="stat-card">
@@ -1877,12 +1951,30 @@ function renderLocalResults(r) {
         <div class="stat-label">Hinnanguline lk</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color:${r.sourceCount >= 5 ? 'var(--green)' : 'var(--red)'}">${r.sourceCount}</div>
-        <div class="stat-label">Tuvastatud allikaid</div>
+        <div class="stat-value" style="color:${r.sourceCount >= 5 && !r.hasWikipedia ? 'var(--green)' : 'var(--red)'}">${r.sourceCount}</div>
+        <div class="stat-label">Tuvastatud allikaid ${r.hasWikipedia ? '(⚠️ Wikipedia!)' : ''}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color:${r.critical.length === 0 ? 'var(--green)' : 'var(--red)'}">${r.critical.length}</div>
         <div class="stat-label">Kriitilist viga</div>
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="stat-card">
+        <div class="stat-value" style="color:${introColor};font-size:22px">${r.introScore}/4</div>
+        <div class="stat-label">Sissejhatuse n�uded</div>
+        <div class="stat-sub">p�hjendus, eesm�rk, allikad, �lesehitus</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:${compColor};font-size:22px">${r.compScore}/12</div>
+        <div class="stat-label">Kompetentsid (B.3)</div>
+        <div class="stat-sub">Kutsestandardi n�uded</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:var(--text2);font-size:22px">${Object.values(r.formatting).filter(Boolean).length}/6</div>
+        <div class="stat-label">Vormistus kirjeldatud</div>
+        <div class="stat-sub">fondid, reavahe, viitamine...</div>
       </div>
     </div>
 
@@ -1904,6 +1996,18 @@ function renderLocalResults(r) {
             <div style="width:10px;height:10px;border-radius:50%;background:${found ? 'var(--green)' : 'var(--orange)'}"></div>
             <span style="flex:1;text-transform:capitalize;">${name}</span>
             <span style="font-weight:700;color:${found ? 'var(--green)' : 'var(--orange)'}">${found ? 'OK' : '?'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">🏆 Kompetentsid (B.3.1–B.3.12)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+        ${Object.entries(r.competencies).map(([code, found]) => `
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:${found ? 'rgba(16,185,129,.1)' : 'var(--panel2)'};border-radius:4px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:${found ? 'var(--green)' : 'var(--text3)'}"></div>
+            <span style="color:${found ? 'var(--green)' : 'var(--text3)'};font-weight:${found ? '600' : '400'}">${code.replace('b','B.').replace('_',' ')}</span>
           </div>
         `).join('')}
       </div>
