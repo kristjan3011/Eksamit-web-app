@@ -1,4 +1,8 @@
-# Eksamitöö abirakendus
+# Eksamitöö abirakendus – tehniline README
+
+Projekti üldine kirjeldus, kasutusjuhend, arhitektuur, privaatsus, turve ja deploy-juhised asuvad repo põhilehel: [`README.md`](../README.md).
+
+See fail keskendub `vercel-project` kausta lokaalsele käivitamisele.
 
 VIKK IT-süsteemide nooremspetsialisti eksamitöö planeerimise ja kontrollimise veebirakendus.
 
@@ -21,6 +25,12 @@ Deploy'itav kaust on `vercel-project`.
 ```bash
 cd vercel-project
 vercel dev
+```
+
+Kui oled juba `vercel-project` kaustas, käivita lihtsalt:
+
+```bash
+npm run dev
 ```
 
 Verceli deploy:
