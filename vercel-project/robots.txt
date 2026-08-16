@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://kristjan-eksamitoo-app.vercel.app/sitemap.xml

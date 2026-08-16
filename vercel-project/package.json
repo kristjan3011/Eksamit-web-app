@@ -1,7 +1,7 @@
 {
-  "name": "eksamitoo-ai-analuus",
+  "name": "eksamitoo-abirakendus",
   "version": "1.0.0",
-  "description": "VIKK IT-süsteemide nooremspetsialisti eksamitöö AI analüüsi API",
+  "description": "VIKK IT-süsteemide nooremspetsialisti eksamitöö planeerimise ja kohaliku tekstianalüüsi rakendus",
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
